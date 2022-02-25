@@ -6,19 +6,28 @@ This file creates your application.
 """
 import os
 from app import app
-from flask import render_template, request, redirect, url_for, flash, session, abort
+from flask import render_template, request, redirect, url_for, flash, session, abort, send_from_directory
 from werkzeug.utils import secure_filename
 
+from .forms import UploadForm
 
 ###
 # Routing for your application.
 ###
 
+def get_uploaded_images():
+    image_list = list()
+    rootdir = os.path.join(app.config['UPLOAD_FOLDER'])
+
+    for subdir, dirs, files in os.walk(rootdir):
+        for file in files:
+            image_list.append(file)
+    return image_list
+
 @app.route('/')
 def home():
     """Render website's home page."""
     return render_template('home.html')
-
 
 @app.route('/about/')
 def about():
@@ -26,22 +35,22 @@ def about():
     return render_template('about.html', name="Mary Jane")
 
 
+
 @app.route('/upload', methods=['POST', 'GET'])
 def upload():
     if not session.get('logged_in'):
         abort(401)
-
-    # Instantiate your form class
-
-    # Validate file upload on submit
+    imageForm = UploadForm()
     if request.method == 'POST':
-        # Get file data and save to your uploads folder
-
-        flash('File Saved', 'success')
+        if imageForm.validate_on_submit():
+            image = imageForm.image.data
+            filename = secure_filename(image.filename)
+            image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            flash('Image uploaded successfully!', 'success')
         return redirect(url_for('home'))
+    flash_errors(imageForm)
 
-    return render_template('upload.html')
-
+    return render_template('upload.html', form=imageForm)
 
 @app.route('/login', methods=['POST', 'GET'])
 def login():
@@ -56,13 +65,20 @@ def login():
             return redirect(url_for('upload'))
     return render_template('login.html', error=error)
 
+@app.route('/uploads/ <filename>')
+def get_image(filename):
+    return send_from_directory(os.path.join(os.getcwd(),app.config['UPLOAD_FOLDER']), filename)
+
+@app.route('/files')
+def files():
+    images = get_uploaded_images()
+    return render_template('files.html', images=images)
 
 @app.route('/logout')
 def logout():
     session.pop('logged_in', None)
     flash('You were logged out', 'success')
     return redirect(url_for('home'))
-
 
 ###
 # The functions below should be applicable to all Flask apps.
